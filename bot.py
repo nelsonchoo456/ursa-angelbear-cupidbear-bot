@@ -4,6 +4,7 @@ import messages
 import datetime
 import collections
 
+import rdb
 import config
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
@@ -32,10 +33,11 @@ def start(update: Update, context: CallbackContext) -> None:
     if players[playerName].username is None:
         update.message.reply_text(messages.NOT_REGISTERED)
         return
+    
+    chat_id = update.message.chat.id
+    rdb.set_chatid(playerName, chat_id)
 
-    players[playerName].chat_id = update.message.chat.id
-
-    logger.info(f'{playerName} started the bot with chat_id {players[playerName].chat_id}')
+    logger.info(f'{playerName} started the bot with chat_id {chat_id}')
 
     update.message.reply_text(f'Hi! {messages.HELP_TEXT}')
 
@@ -61,7 +63,7 @@ def send_command(update: Update, context: CallbackContext):
         update.message.reply_text(messages.NOT_REGISTERED)
         return ConversationHandler.END
 
-    if players[playerName].chat_id is None:
+    if rdb.get_chatid(playerName) is None:
         update.message.reply_text(messages.ERROR_CHAT_ID)
         return ConversationHandler.END
 
@@ -74,7 +76,7 @@ def send_command(update: Update, context: CallbackContext):
 
 def startAngel(update: Update, context: CallbackContext):
     playerName = update.callback_query.message.chat.username.lower()
-    if players[playerName].angel.chat_id is None:
+    if rdb.get_chatid(players[playerName].angel.username) is None:
         update.callback_query.message.reply_text(messages.getBotNotStartedMessage(config.ANGEL_ALIAS))
         logger.info(messages.getNotRegisteredLog(config.ANGEL_ALIAS, playerName, players[playerName].angel.username))
         return ConversationHandler.END
@@ -84,7 +86,7 @@ def startAngel(update: Update, context: CallbackContext):
 
 def startMortal(update: Update, context: CallbackContext):
     playerName = update.callback_query.message.chat.username.lower()
-    if players[playerName].mortal.chat_id is None:
+    if rdb.get_chatid(players[playerName].mortal.username) is None:
         update.callback_query.message.reply_text(messages.getBotNotStartedMessage(config.MORTAL_ALIAS))
         logger.info(messages.getNotRegisteredLog(config.MORTAL_ALIAS, playerName, players[playerName].mortal.username))
         return ConversationHandler.END
@@ -139,18 +141,19 @@ def sendNonTextMessage(message, bot, chat_id):
 
 def sendAngel(update: Update, context: CallbackContext):
     playerName = update.message.chat.username.lower()
+    chat_id = rdb.get_chatid(players[playerName].angel.username)
     
     if update.message.text:
         context.bot.send_message(
             text = messages.getReceivedMessage(config.MORTAL_ALIAS, update.message.text),
-            chat_id = players[playerName].angel.chat_id
+            chat_id = chat_id,
         )
     else:
         context.bot.send_message(
             text = messages.getReceivedMessage(config.MORTAL_ALIAS),
-            chat_id = players[playerName].angel.chat_id
+            chat_id = chat_id,
         )
-        sendNonTextMessage(update.message, context.bot, players[playerName].angel.chat_id)
+        sendNonTextMessage(update.message, context.bot, chat_id)
 
     update.message.reply_text(messages.MESSAGE_SENT)
 
@@ -160,18 +163,19 @@ def sendAngel(update: Update, context: CallbackContext):
 
 def sendMortal(update: Update, context: CallbackContext):
     playerName = update.message.chat.username.lower()
+    chat_id = rdb.get_chatid(players[playerName].mortal.username)
 
     if update.message.text:
         context.bot.send_message(
             text = messages.getReceivedMessage(config.ANGEL_ALIAS, update.message.text),
-            chat_id = players[playerName].mortal.chat_id
+            chat_id = chat_id,
         )
     else:
         context.bot.send_message(
             text = messages.getReceivedMessage(config.ANGEL_ALIAS),
-            chat_id = players[playerName].mortal.chat_id
+            chat_id = chat_id,
         )
-        sendNonTextMessage(update.message, context.bot, players[playerName].mortal.chat_id)
+        sendNonTextMessage(update.message, context.bot, chat_id)
 
     update.message.reply_text(messages.MESSAGE_SENT)
 
@@ -200,7 +204,6 @@ def main():
     # on different commands - answer in Telegram
     dispatcher.add_handler(CommandHandler("start", start))
     dispatcher.add_handler(CommandHandler("help", help_command))
-    dispatcher.add_handler(CommandHandler("reloadplayers", reload_command))
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('send', send_command)],
@@ -224,8 +227,4 @@ def main():
 
 
 if __name__ == '__main__':
-    try:
-        main()
-    finally:
-        player.saveChatID(players)
-        logger.info(f'Player chat ids have been saved in {config.CHAT_ID_JSON}')
+    main()
