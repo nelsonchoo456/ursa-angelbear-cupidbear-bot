@@ -32,7 +32,6 @@ def loadPlayers(players: dict):
         logger.info(f'Processed {line_count} lines.')
 
     validatePairings(players)
-    loadChatID(players)
 
 def validatePairings(players: dict):
     for _, player in players.items():
